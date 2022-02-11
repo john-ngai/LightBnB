@@ -86,21 +86,14 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
  const getAllProperties = (options, limit = 10) => {
-  // console.log('options:', options);
-  // console.log('city:', options.city);
-  // console.log('minimum_price_per_night:', options.minimum_price_per_night);
-  // console.log('maximum_price_per_night:', options.maximum_price_per_night);
-  // console.log('minimum_rating:', options.minimum_rating);
-
   const queryParams = [];
-  
   let queryString = `
   SELECT properties.*, AVG(property_reviews.rating) AS average_rating
   FROM properties
   JOIN property_reviews ON properties.id = property_id
   `;
 
-  // If an owner_id is passed in, only return properties belonging to that owner.
+  // If an owner_id is passed into the filter, only return properties belonging to that owner.
   if (options.owner_id) {
     queryParams.push(owner_id);
     queryString += `
@@ -113,8 +106,7 @@ exports.getAllReservations = getAllReservations;
     .then((res) => res.rows);
   }
 
-
-  // %askatoo% = Saskatoon
+  // If a city is passed into the filter, then return:
   if (options.city) {
     queryParams.push(`%${options.city}%`);
     queryString += `WHERE city LIKE $${queryParams.length} `;
@@ -135,8 +127,20 @@ exports.getAllReservations = getAllReservations;
       queryParams.push(options.minimum_rating);
       queryString += `AND rating >= $${queryParams.length} `;
     }
+    
+    queryParams.push(limit);
+    queryString += `
+    GROUP BY properties.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length};
+    `;
+
+    return pool
+    .query(queryString, queryParams)
+    .then((res) => res.rows);
   }
 
+  // If a city is NOT passed into the filter, but a minimum price is, then return:
   if (!options.city && options.minimum_price_per_night) {    
       options.minimum_price_per_night *= 100;
       queryParams.push(options.minimum_price_per_night);
@@ -152,8 +156,20 @@ exports.getAllReservations = getAllReservations;
       queryParams.push(options.minimum_rating);
       queryString += `AND rating >= $${queryParams.length} `;
     }
+
+    queryParams.push(limit);
+    queryString += `
+    GROUP BY properties.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length};
+    `;
+
+    return pool
+    .query(queryString, queryParams)
+    .then((res) => res.rows);
   }
 
+  // If a city and minimum price are NOT passed into the filter, but a maximum price is, then return:
   if (!options.city && !options.minimum_price_per_night && options.maximum_price_per_night) {    
       options.maximum_price_per_night *= 100;
       queryParams.push(options.maximum_price_per_night);
@@ -163,21 +179,42 @@ exports.getAllReservations = getAllReservations;
       queryParams.push(options.minimum_rating);
       queryString += `AND rating >= $${queryParams.length} `;
     }
+
+    queryParams.push(limit);
+    queryString += `
+    GROUP BY properties.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length};
+    `;
+
+    return pool
+    .query(queryString, queryParams)
+    .then((res) => res.rows);
   }
 
+  // If a city, minimum price, and maximum price are NOT passed into the filter, but a rating is, then return:
   if (!options.city && !options.minimum_price_per_night && !options.maximum_price_per_night, options.minimum_rating) {    
-      queryParams.push(options.minimum_rating);
-      queryString += `WHERE rating >= $${queryParams.length} `;
-  }
+    queryParams.push(options.minimum_rating);
+    queryString += `WHERE rating >= $${queryParams.length} `;
 
+    queryParams.push(limit);
+    queryString += `
+    GROUP BY properties.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length};
+    `;
+
+    return pool
+    .query(queryString, queryParams)
+    .then((res) => res.rows);
+  }
+  
   queryParams.push(limit);
   queryString += `
   GROUP BY properties.id
   ORDER BY cost_per_night
   LIMIT $${queryParams.length};
   `;
-
-  console.log(queryString, queryParams);
 
   return pool
   .query(queryString, queryParams)
