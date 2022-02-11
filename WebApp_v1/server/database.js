@@ -21,8 +21,7 @@ const getUserWithEmail = function(email) {
   .query(`
   SELECT * FROM users WHERE email = $1;
   `, [email])
-  .then(res => res.rows[0])
-  .catch(err => console.log(err.message));
+  .then(res => res.rows[0]);
 }
 exports.getUserWithEmail = getUserWithEmail;
 
@@ -36,8 +35,7 @@ const getUserWithId = function(id) {
   .query(`
   SELECT * FROM users WHERE id = $1;
   `, [id])
-  .then(res => res.rows[0])
-  .catch(err => console.log(err.message));
+  .then(res => res.rows[0]);
 }
 exports.getUserWithId = getUserWithId;
 
@@ -55,8 +53,7 @@ const addUser =  function(user) {
   VALUES ($1, $2, $3)
   RETURNING *;
   `, values)
-  .then(res => res.rows[0])
-  .catch(err => console.log(err.message))
+  .then(res => res.rows[0]);
 }
 exports.addUser = addUser;
 
@@ -76,8 +73,7 @@ const getAllReservations = function(guest_id, limit = 10) {
   WHERE guest_id = $1
   LIMIT $2;
   `, values)
-  .then(res => res.rows)
-  .catch(err => console.log(err.message))
+  .then(res => res.rows);
 }
 exports.getAllReservations = getAllReservations;
 
@@ -90,10 +86,102 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
  const getAllProperties = (options, limit = 10) => {
+  // console.log('options:', options);
+  // console.log('city:', options.city);
+  // console.log('minimum_price_per_night:', options.minimum_price_per_night);
+  // console.log('maximum_price_per_night:', options.maximum_price_per_night);
+  // console.log('minimum_rating:', options.minimum_rating);
+
+  const queryParams = [];
+  
+  let queryString = `
+  SELECT properties.*, AVG(property_reviews.rating) AS average_rating
+  FROM properties
+  JOIN property_reviews ON properties.id = property_id
+  `;
+
+  // If an owner_id is passed in, only return properties belonging to that owner.
+  if (options.owner_id) {
+    queryParams.push(owner_id);
+    queryString += `
+    WHERE owner_id = $${queryParams.length}
+    GROUP BY properties.id
+    ORDER BY cost_per_night;
+    `;
+    return pool
+    .query(queryString, queryParams)
+    .then((res) => res.rows);
+  }
+
+
+  // %askatoo% = Saskatoon
+  if (options.city) {
+    queryParams.push(`%${options.city}%`);
+    queryString += `WHERE city LIKE $${queryParams.length} `;
+    
+    if (options.minimum_price_per_night) {
+      options.minimum_price_per_night *= 100;
+      queryParams.push(options.minimum_price_per_night);
+      queryString += `AND cost_per_night >= $${queryParams.length} `;
+    }
+
+    if (options.maximum_price_per_night) {
+      options.maximum_price_per_night *= 100;
+      queryParams.push(options.maximum_price_per_night);
+      queryString += `AND cost_per_night <= $${queryParams.length} `;
+    }
+
+    if (options.minimum_rating) {
+      queryParams.push(options.minimum_rating);
+      queryString += `AND rating >= $${queryParams.length} `;
+    }
+  }
+
+  if (!options.city && options.minimum_price_per_night) {    
+      options.minimum_price_per_night *= 100;
+      queryParams.push(options.minimum_price_per_night);
+      queryString += `WHERE cost_per_night >= $${queryParams.length} `;
+
+    if (options.maximum_price_per_night) {
+      options.maximum_price_per_night *= 100;
+      queryParams.push(options.maximum_price_per_night);
+      queryString += `AND cost_per_night <= $${queryParams.length} `;
+    }
+
+    if (options.minimum_rating) {
+      queryParams.push(options.minimum_rating);
+      queryString += `AND rating >= $${queryParams.length} `;
+    }
+  }
+
+  if (!options.city && !options.minimum_price_per_night && options.maximum_price_per_night) {    
+      options.maximum_price_per_night *= 100;
+      queryParams.push(options.maximum_price_per_night);
+      queryString += `WHERE cost_per_night <= $${queryParams.length} `;
+
+    if (options.minimum_rating) {
+      queryParams.push(options.minimum_rating);
+      queryString += `AND rating >= $${queryParams.length} `;
+    }
+  }
+
+  if (!options.city && !options.minimum_price_per_night && !options.maximum_price_per_night, options.minimum_rating) {    
+      queryParams.push(options.minimum_rating);
+      queryString += `WHERE rating >= $${queryParams.length} `;
+  }
+
+  queryParams.push(limit);
+  queryString += `
+  GROUP BY properties.id
+  ORDER BY cost_per_night
+  LIMIT $${queryParams.length};
+  `;
+
+  console.log(queryString, queryParams);
+
   return pool
-    .query(`SELECT * FROM properties LIMIT $1`, [limit])
-    .then(res => res.rows)
-    .catch(err => console.log(err.message));
+  .query(queryString, queryParams)
+  .then((res) => res.rows);
 };
 exports.getAllProperties = getAllProperties;
 
