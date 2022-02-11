@@ -95,7 +95,7 @@ exports.getAllReservations = getAllReservations;
 
   // If an owner_id is passed into the filter, only return properties belonging to that owner.
   if (options.owner_id) {
-    queryParams.push(owner_id);
+    queryParams.push(options.owner_id);
     queryString += `
     WHERE owner_id = $${queryParams.length}
     GROUP BY properties.id
@@ -244,7 +244,7 @@ const addProperty = function(property) {
     Number(property.number_of_bathrooms),
     Number(property.number_of_bedrooms)
   ];
-  
+
   const query = `
   INSERT INTO properties (owner_id, title, description, thumbnail_photo_url, cover_photo_url, cost_per_night, street, city, province, post_code, country, number_of_bathrooms, number_of_bedrooms)
   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
